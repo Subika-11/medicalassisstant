@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Offline Diabetes Assistant</string>
+    <string name="hint_ask_question">Ask a diabetes question…</string>
+    <string name="btn_send">Ask</string>
+    <string name="status_loading_model">Loading model…</string>
+    <string name="status_ready">Ready</string>
+    <string name="disclaimer">
+        This app provides general information from CDC, NIDDK, ADA, and WHO
+        sources only. It is not a substitute for professional medical advice,
+        diagnosis, or treatment. In an emergency, call your local emergency
+        number immediately.
+    </string>
+</resources>
