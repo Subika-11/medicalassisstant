@@ -68,7 +68,7 @@ object LlamaBridge {
     suspend fun generate(
         prompt: String,
         maxTokens: Int = 256,
-        temperature: Float = 0.1f,
+        temperature: Float = 0.4f,
         stopToken: String = "<|im_end|>",
         onToken: (String) -> Unit = {},
     ): String = withContext(Dispatchers.IO) {

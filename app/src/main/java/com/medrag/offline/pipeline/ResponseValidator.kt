@@ -1,5 +1,7 @@
 package com.medrag.offline.pipeline
 
+import com.medrag.offline.retrieval.MedicalFact
+
 /**
  * Stage 6 - the last line of defense against hallucination. Even with a
  * constrained prompt, a 0.8B model can still drift, so this checks the
@@ -19,7 +21,7 @@ object ResponseValidator {
         RegexOption.IGNORE_CASE,
     )
 
-    fun validate(rawResponse: String, allowedFactIds: List<String>, grounded: Boolean): String {
+    fun validate(rawResponse: String, allowedFacts: List<MedicalFact>, grounded: Boolean): String {
         val trimmed = rawResponse.trim()
 
         if (trimmed.contains(PromptBuilder.REFUSAL_TEXT)) {
@@ -27,20 +29,34 @@ object ResponseValidator {
         }
 
         return if (grounded) {
-            validateGrounded(trimmed, allowedFactIds)
+            validateGrounded(trimmed, allowedFacts)
         } else {
             validateGeneralKnowledge(trimmed)
         }
     }
 
-    private fun validateGrounded(trimmed: String, allowedFactIds: List<String>): String {
-        val citedIds = allowedFactIds.filter { trimmed.contains(it) }
-        if (citedIds.isEmpty()) {
-            return "${PromptBuilder.REFUSAL_TEXT} (validator: no retrieved fact_id was cited)"
+    private fun validateGrounded(trimmed: String, allowedFacts: List<MedicalFact>): String {
+        val allowedIds = allowedFacts.map { it.factId }
+        val citedById = allowedIds.filter { trimmed.contains(it) }
+
+        // Fallback for 0.8B model: Match full name OR acronyms (like CDC, ADA, NIDDK, WHO)
+        val citedByOrg = allowedFacts.filter { fact ->
+            val org = fact.sourceOrganization ?: return@filter false
+            // 1. Direct match (e.g. "CDC" or "NIDDK")
+            if (trimmed.contains(org, ignoreCase = true)) return@filter true
+
+            // 2. Acronym match: if org is "Centers for Disease Control (CDC)", check for "CDC"
+            val acronymMatch = Regex("""\(([^)]+)\)""").find(org)
+            val acronym = acronymMatch?.groupValues?.get(1)
+            acronym != null && acronym.length >= 2 && trimmed.contains(acronym, ignoreCase = true)
+        }
+
+        if (citedById.isEmpty() && citedByOrg.isEmpty()) {
+            return "${PromptBuilder.REFUSAL_TEXT} (validator: no retrieved fact_id or organization was cited)"
         }
 
         val allDmIdsInText = FACT_ID_PATTERN.findAll(trimmed).map { it.value }.toSet()
-        val unauthorized = allDmIdsInText - allowedFactIds.toSet()
+        val unauthorized = allDmIdsInText - allowedIds.toSet()
         if (unauthorized.isNotEmpty()) {
             return "${PromptBuilder.REFUSAL_TEXT} (validator: cited unretrieved id(s) $unauthorized)"
         }
@@ -49,15 +65,16 @@ object ResponseValidator {
     }
 
     private fun validateGeneralKnowledge(trimmed: String): String {
-        if (!trimmed.startsWith(PromptBuilder.GENERAL_KNOWLEDGE_TAG)) {
-            return "${PromptBuilder.REFUSAL_TEXT} (validator: missing general-knowledge disclaimer tag)"
-        }
+        // If the model forgot the tag, but the answer is safe (checked below),
+        // we'll just prepend it ourselves instead of refusing a helpful answer.
+        val hasTag = trimmed.startsWith(PromptBuilder.GENERAL_KNOWLEDGE_TAG)
 
         if (RISKY_NUMERIC_PATTERN.containsMatchIn(trimmed)) {
             return "${PromptBuilder.REFUSAL_TEXT} (validator: ungrounded answer stated a specific " +
                     "clinical number - rejected rather than risk an unverified figure)"
         }
 
-        return trimmed
+        // Auto-fix: if tag is missing, add it. Otherwise return as-is.
+        return if (hasTag) trimmed else "${PromptBuilder.GENERAL_KNOWLEDGE_TAG}\n\n$trimmed"
     }
 }

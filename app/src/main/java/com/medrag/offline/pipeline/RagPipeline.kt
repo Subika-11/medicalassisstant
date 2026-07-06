@@ -27,7 +27,7 @@ class RagPipeline(
     private val embeddingEngine: EmbeddingEngine,
     private val vectorSearchEngine: VectorSearchEngine,
     private val factDatabase: FactDatabase,
-    private val topK: Int = 3,
+    private val topK: Int = 2,
 ) {
 
     companion object {
@@ -64,7 +64,7 @@ class RagPipeline(
         val rawResponse = LlamaBridge.generate(prompt, onToken = onToken)
         val validated = ResponseValidator.validate(
             rawResponse,
-            retrievedFacts.map { it.factId },
+            retrievedFacts,
             grounded = isGrounded,
         )
 

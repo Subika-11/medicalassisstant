@@ -161,9 +161,14 @@ Java_com_medrag_offline_llm_LlamaBridge_nativeGenerate(
         return env->NewStringUTF("[error] decode failed during prompt prefill");
     }
 
-    // --- sampler chain: temperature + distribution sampling (greedy if temperature <= 0) ---
+    // --- sampler chain: temperature + repetition penalty + sampling ---
     llama_sampler_chain_params sparams = llama_sampler_chain_default_params();
     llama_sampler* sampler = llama_sampler_chain_init(sparams);
+
+    // Add repetition penalty (prevents loops)
+    // last_n=64 tokens, penalty=1.1f
+    llama_sampler_chain_add(sampler, llama_sampler_init_penalties(64, 1.1f, 0.0f, 0.0f));
+
     if (temperature <= 0.0f) {
         llama_sampler_chain_add(sampler, llama_sampler_init_greedy());
     } else {

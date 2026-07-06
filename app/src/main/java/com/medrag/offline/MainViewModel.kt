@@ -59,7 +59,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     embeddingEngine = embedder
 
                     // 3) Bring up the LLM last - this is the slow part (model load).
-                    val ok = LlamaBridge.initialize(modelFile.absolutePath, nCtx = 1024, nThreads = 4)
+                    val ok = LlamaBridge.initialize(modelFile.absolutePath, nCtx = 512, nThreads = 4)
                     if (!ok) {
                         _uiState.value = UiState.Error("Failed to load the language model.")
                         return@withContext
